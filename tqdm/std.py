@@ -1332,8 +1332,8 @@ class tqdm(Comparable):
             if leave:
                 # stats for overall rate (no weighted average)
                 self.avg_time = None
-                self.display(pos=0)
-                fp_write('\n')
+                self.display()
+                fp_write('\r')
             else:
                 # clear previous display
                 if self.display(msg='', pos=pos) and not pos:
