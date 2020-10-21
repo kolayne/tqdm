@@ -244,7 +244,10 @@ class DisableOnWriteError(ObjectWrapper):
         return self._wrapped == getattr(other, '_wrapped', other)
 
     def __hash__(self):
-        return hash(self._wrapped)
+        try:
+            return hash(self._wrapped)
+        except TypeError:
+            return id(self)
 
 
 class CallbackIOWrapper(ObjectWrapper):

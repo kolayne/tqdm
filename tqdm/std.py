@@ -865,8 +865,8 @@ class tqdm(Comparable):
             If `None`, will leave only if `position` is `0`.
         file  : `io.TextIOWrapper` or `io.StringIO`, optional
             Specifies where to output the progress messages
-            (default: sys.stderr). Uses `file.write(str)`, `file.flush()`
-            and `hash(file)`. For encoding, see `write_bytes`.
+            (default: sys.stderr). Uses `file.write(str)` and `file.flush()`
+            methods.  For encoding, see `write_bytes`.
         ncols  : int, optional
             The width of the entire output message. If specified,
             dynamically resizes the progressbar to stay within this bound.
