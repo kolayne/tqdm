@@ -592,12 +592,12 @@ class tqdm(Comparable):
         Remove from list and reposition another unfixed bar
         to fill the new gap.
 
+        This method must be called with `self._lock` acquired
+
         This means that by default (where all nested bars are unfixed),
         order is not maintained but screen flicker/blank space is minimised.
         (tqdm<=4.44.1 moved ALL subsequent unfixed bars up.)
         """
-        # The lock is acquired by the caller of the method
-
         try:
             cls._instances.remove(instance)
         except KeyError:
@@ -1369,7 +1369,7 @@ class tqdm(Comparable):
                     fp_write('\r')
 
             # No matter if current bar's traces should be left or not,
-            # if it's the last bar, it should print write terminators
+            # if it's the last bar, it should print line terminators
             if self.fp in self._simultaneous_bars_counters.keys():
                 for instance in self._instances:
                     # If this is not the last bar, do nothing
