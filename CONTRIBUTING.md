@@ -54,7 +54,6 @@ However it would be helpful to bear in mind:
     + remember, with millions of downloads per month, `tqdm` must be extremely fast and reliable
 - Any other kind of change may be included in a (possibly new) submodule
     + submodules are likely single python files under the main [tqdm/](tqdm/) directory
-        * large submodules requiring a sub-folder should be included in [`MANIFEST.in`](MANIFEST.in)
     + submodules extending `tqdm.std.tqdm` or any other module (e.g. [`tqdm.notebook.tqdm`](tqdm/notebook.py), [`tqdm.gui.tqdm`](tqdm/gui.py))
     + CLI wrapper `tqdm.cli`
         * if a newly added `tqdm.std.tqdm` option is not supported by the CLI, append to `tqdm.cli.UNSUPPORTED_OPTS`
@@ -64,7 +63,7 @@ However it would be helpful to bear in mind:
         * beta: well-used; commented, perhaps still missing tests
         * stable: >10 users; commented, 80% coverage
 - `.meta/`
-    + A "hidden" folder containing helper utilities not strictly part of `tqdm` distribution itself
+    + A "hidden" folder containing helper utilities not strictly part of the `tqdm` distribution itself
 
 
 ## TESTING
@@ -100,11 +99,11 @@ you can use `MiniConda` to install a minimal setup. You must also make sure
 that each distribution has an alias to call the Python interpreter:
 `python27` for Python 2.7's interpreter, `python32` for Python 3.2's, etc.
 
-### Alternative unit tests with Nose
+### Alternative unit tests with pytest
 
-Alternatively, use `nose` to run the tests just for the current Python version:
+Alternatively, use `pytest` to run the tests just for the current Python version:
 
-- install `nose` and `flake8`
+- install `pytest` and `flake8`
 - run the following command:
 
 ```
@@ -119,7 +118,7 @@ This section is intended for the project's maintainers and describes
 how to build and upload a new release. Once again,
 `[python setup.py] make [<alias>]` will help.
 Also consider `pip install`ing development utilities:
-`-r requirements-dev.txt` or `tqdm[dev]`.
+`pip install tqdm[dev]` at a minimum, or a more thorough `conda env create`.
 
 
 ## Pre-commit Hook
@@ -132,8 +131,6 @@ It's probably a good idea to add `[python setup.py] make pre-commit` to
 
 The tqdm repository managers should:
 
-- regularly bump the version number in the file
-[_version.py](https://raw.githubusercontent.com/tqdm/tqdm/master/tqdm/_version.py)
 - follow the [Semantic Versioning](https://semver.org/) convention
 - take care of this (instead of users) to avoid PR conflicts
 solely due to the version file bumping
@@ -145,8 +142,8 @@ Note: tools can be used to automate this process, such as
 
 ## Checking setup.py
 
-To check that the `setup.py` file is compliant with PyPI requirements (e.g.
-version number; reStructuredText in `README.rst`) use:
+To check that the `setup.py`/`setup.cfg` file is compliant with PyPI
+requirements (e.g. version number; reStructuredText in `README.rst`) use:
 
 ```
 [python setup.py] make testsetup
@@ -208,16 +205,7 @@ git merge --no-ff pr-branch-name
 [python setup.py] make alltests
 ```
 
-### 5 Version
-
-Modify `tqdm/_version.py` and amend the last (merge) commit:
-
-```
-git add tqdm/_version.py
-git commit --amend  # Add "+ bump version" in the commit message
-```
-
-### 6 Push to master
+### 5 Push to master
 
 ```
 git push origin master
@@ -231,7 +219,7 @@ Formally publishing requires additional steps: testing and tagging.
 ### Test
 
 - ensure that all online CI tests have passed
-- check `setup.py` and `MANIFEST.in` - which define the packaging
+- check `setup.py` and `setup.cfg` - which define the packaging
 process and info that will be uploaded to [PyPI](https://pypi.org) -
 using `[python setup.py] make installdev`
 
@@ -245,7 +233,7 @@ display as `v{major}.{minor}.{patch}-{commit_hash}`.
 
 ### Upload
 
-Travis CI should automatically do this after pushing tags.
+GitHub Actions (GHA) CI should automatically do this after pushing tags.
 Manual instructions are given below in case of failure.
 
 Build `tqdm` into a distributable python package:
@@ -349,40 +337,39 @@ to assist with maintenance.
 ## QUICK DEV SUMMARY
 
 For experienced devs, once happy with local master, follow the steps below.
-Much is automated so really it's steps 1-6, then 12(a).
+Much is automated so really it's steps 1-5, then 11(a).
 
-1. bump version in `tqdm/_version.py`
-2. test (`[python setup.py] make alltests`)
-3. `git commit [--amend]  # -m "bump version"`
-4. `git push`
-5. wait for tests to pass
-    a) in case of failure, fix and go back to (2)
-6. `git tag vM.m.p && git push --tags` or comment `/tag vM.m.p commit_hash`
-7. **`[AUTO:TravisCI]`** `[python setup.py] make distclean`
-8. **`[AUTO:TravisCI]`** `[python setup.py] make build`
-9. **`[AUTO:TravisCI]`** upload to PyPI. either:
+1. test (`[python setup.py] make alltests`)
+2. `git commit [--amend]  # -m "bump version"`
+3. `git push`
+4. wait for tests to pass
+    a) in case of failure, fix and go back to (1)
+5. `git tag vM.m.p && git push --tags` or comment `/tag vM.m.p commit_hash`
+6. **`[AUTO:GHA]`** `[python setup.py] make distclean`
+7. **`[AUTO:GHA]`** `[python setup.py] make build`
+8. **`[AUTO:GHA]`** upload to PyPI. either:
     a) `[python setup.py] make pypi`, or
     b) `twine upload -s -i $(git config user.signingkey) dist/tqdm-*`
-10. **`[AUTO:TravisCI]`** upload to docker hub:
+9. **`[AUTO:GHA]`** upload to docker hub:
     a) `make -B docker`
     b) `docker push tqdm/tqdm:latest`
     c) `docker push tqdm/tqdm:$(docker run -i --rm tqdm/tqdm -v)`
-11. **`[AUTO:TravisCI]`** upload to snapcraft:
+10. **`[AUTO:GHA]`** upload to snapcraft:
     a) `make snap`, and
     b) `snapcraft push tqdm*.snap --release stable`
-12. Wait for travis to draft a new release on <https://github.com/tqdm/tqdm/releases>
+11. Wait for GHA to draft a new release on <https://github.com/tqdm/tqdm/releases>
     a) replace the commit history with helpful release notes, and click publish
-    b) **`[AUTO:TravisCI]`** attach `dist/tqdm-*` binaries
+    b) **`[AUTO:GHA]`** attach `dist/tqdm-*` binaries
        (usually only `*.whl*`)
-13. **`[SUB][AUTO:GHActions]`** run `make` in the `wiki` submodule to update release notes
-14. **`[SUB][AUTO:GHActions]`** run `make deploy` in the `docs` submodule to update website
-15. **`[SUB][AUTO:GHActions]`** accept the automated PR in the `feedstock` submodule to update conda
-16. **`[AUTO:GHActions]`** update the [gh-pages project] benchmarks
+12. **`[SUB][AUTO:GHA-rel]`** run `make` in the `wiki` submodule to update release notes
+13. **`[SUB][AUTO:GHA-rel]`** run `make deploy` in the `docs` submodule to update website
+14. **`[SUB][AUTO:GHA-rel]`** accept the automated PR in the `feedstock` submodule to update conda
+15. **`[AUTO:GHA-rel]`** update the [gh-pages project] benchmarks
     a) `[python setup.py] make testasvfull`
     b) `asv gh-pages`
 
 Key:
 
-- **`[AUTO:TravisCI]`**: Travis CI should automatically do this after `git push --tags` (6)
-- **`[AUTO:GHActions]`**: GitHub Actions CI should automatically do this after release (12a)
+- **`[AUTO:GHA]`**: GitHub Actions CI should automatically do this after `git push --tags` (5)
+- **`[AUTO:GHA-rel]`**: GitHub Actions CI should automatically do this after release (11a)
 - **`[SUB]`**:  Requires one-time `make submodules` to clone `docs`, `wiki`, and `feedstock`

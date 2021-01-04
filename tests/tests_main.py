@@ -1,14 +1,14 @@
-import sys
-import subprocess
+"""Test CLI usage."""
+from io import open as io_open
 from os import path
 from shutil import rmtree
 from tempfile import mkdtemp
+import sys
+import subprocess
+
 from tqdm.cli import main, TqdmKeyError, TqdmTypeError
 from tqdm.utils import IS_WIN
-from io import open as io_open
-
-from tests_tqdm import with_setup, pretest, posttest, _range, closing, \
-    UnicodeIO, StringIO, SkipTest
+from .tests_tqdm import skip, _range, closing, UnicodeIO, StringIO, BytesIO
 
 
 def _sh(*cmd, **kwargs):
@@ -27,12 +27,10 @@ class Null(object):
 NULL = Null()
 
 
-@with_setup(pretest, posttest)
 def test_pipes():
     """Test command line pipes"""
     ls_out = _sh('ls').replace('\r\n', '\n')
-    ls = subprocess.Popen('ls', stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT)
+    ls = subprocess.Popen('ls', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     res = _sh(sys.executable, '-c', 'from tqdm.cli import main; main()',
               stdin=ls.stdout, stderr=subprocess.STDOUT)
     ls.wait()
@@ -43,22 +41,22 @@ def test_pipes():
 
 
 # WARNING: this should be the last test as it messes with sys.stdin, argv
-@with_setup(pretest, posttest)
 def test_main():
     """Test misc CLI options"""
     _SYS = sys.stdin, sys.argv
+    _STDOUT = sys.stdout
     N = 123
 
     # test direct import
-    sys.stdin = map(str, _range(N))
+    sys.stdin = [str(i).encode() for i in _range(N)]
     sys.argv = ['', '--desc', 'Test CLI import',
                 '--ascii', 'True', '--unit_scale', 'True']
     import tqdm.__main__  # NOQA
     sys.stderr.write("Test misc CLI options ... ")
 
     # test --delim
-    IN_DATA = '\0'.join(map(str, _range(N)))
-    with closing(StringIO()) as sys.stdin:
+    IN_DATA = '\0'.join(map(str, _range(N))).encode()
+    with closing(BytesIO()) as sys.stdin:
         sys.argv = ['', '--desc', 'Test CLI delim',
                     '--ascii', 'True', '--delim', r'\0', '--buf_size', '64']
         sys.stdin.write(IN_DATA)
@@ -69,8 +67,8 @@ def test_main():
             assert str(N) + "it" in fp.getvalue()
 
     # test --bytes
-    IN_DATA = IN_DATA.replace('\0', '\n')
-    with closing(StringIO()) as sys.stdin:
+    IN_DATA = IN_DATA.replace(b'\0', b'\n')
+    with closing(BytesIO()) as sys.stdin:
         sys.stdin.write(IN_DATA)
         sys.stdin.seek(0)
         sys.argv = ['', '--ascii', '--bytes=True', '--unit_scale', 'False']
@@ -79,30 +77,32 @@ def test_main():
             assert str(len(IN_DATA)) in fp.getvalue()
 
     # test --log
-    sys.stdin = map(str, _range(N))
+    sys.stdin = [str(i).encode() for i in _range(N)]
     # with closing(UnicodeIO()) as fp:
     main(argv=['--log', 'DEBUG'], fp=NULL)
+    main(argv=['--log=DEBUG'], fp=NULL)
     # assert "DEBUG:" in sys.stdout.getvalue()
 
-    # test --tee
-    with closing(StringIO()) as sys.stdin:
-        sys.stdin.write(IN_DATA)
-
-        sys.stdin.seek(0)
-        with closing(UnicodeIO()) as fp:
-            main(argv=['--mininterval', '0', '--miniters', '1'], fp=fp)
-            res = len(fp.getvalue())
-            # assert len(fp.getvalue()) < len(sys.stdout.getvalue())
-
-        sys.stdin.seek(0)
-        with closing(UnicodeIO()) as fp:
-            main(argv=['--tee', '--mininterval', '0', '--miniters', '1'], fp=fp)
-            # spaces to clear intermediate lines could increase length
-            assert len(fp.getvalue()) >= res + len(IN_DATA)
-
-    # test --null
-    _STDOUT = sys.stdout
     try:
+        # test --tee
+        IN_DATA = IN_DATA.decode()
+        with closing(StringIO()) as sys.stdout:
+            with closing(StringIO()) as sys.stdin:
+                sys.stdin.write(IN_DATA)
+
+                sys.stdin.seek(0)
+                with closing(UnicodeIO()) as fp:
+                    main(argv=['--mininterval', '0', '--miniters', '1'], fp=fp)
+                    res = len(fp.getvalue())
+                    # assert len(fp.getvalue()) < len(sys.stdout.getvalue())
+
+                sys.stdin.seek(0)
+                with closing(UnicodeIO()) as fp:
+                    main(argv=['--tee', '--mininterval', '0', '--miniters', '1'], fp=fp)
+                    # spaces to clear intermediate lines could increase length
+                    assert len(fp.getvalue()) >= res + len(IN_DATA)
+
+        # test --null
         with closing(StringIO()) as sys.stdout:
             with closing(StringIO()) as sys.stdin:
                 sys.stdin.write(IN_DATA)
@@ -119,14 +119,12 @@ def test_main():
                 with closing(UnicodeIO()) as fp:
                     main(argv=[], fp=fp)
                     assert sys.stdout.getvalue()
-    except:
-        sys.stdout = _STDOUT
-        raise
-    else:
+    finally:
         sys.stdout = _STDOUT
 
     # test integer --update
-    with closing(StringIO()) as sys.stdin:
+    IN_DATA = IN_DATA.encode()
+    with closing(BytesIO()) as sys.stdin:
         sys.stdin.write(IN_DATA)
 
         sys.stdin.seek(0)
@@ -136,8 +134,8 @@ def test_main():
             assert str(N // 2 * N) + "it" in res  # arithmetic sum formula
 
     # test integer --update --delim
-    with closing(StringIO()) as sys.stdin:
-        sys.stdin.write(IN_DATA.replace('\n', 'D'))
+    with closing(BytesIO()) as sys.stdin:
+        sys.stdin.write(IN_DATA.replace(b'\n', b'D'))
 
         sys.stdin.seek(0)
         with closing(UnicodeIO()) as fp:
@@ -146,7 +144,7 @@ def test_main():
             assert str(N // 2 * N) + "it" in res  # arithmetic sum formula
 
     # test integer --update_to
-    with closing(StringIO()) as sys.stdin:
+    with closing(BytesIO()) as sys.stdin:
         sys.stdin.write(IN_DATA)
 
         sys.stdin.seek(0)
@@ -157,8 +155,8 @@ def test_main():
             assert str(N) + "it" not in res
 
     # test integer --update_to --delim
-    with closing(StringIO()) as sys.stdin:
-        sys.stdin.write(IN_DATA.replace('\n', 'D'))
+    with closing(BytesIO()) as sys.stdin:
+        sys.stdin.write(IN_DATA.replace(b'\n', b'D'))
 
         sys.stdin.seek(0)
         with closing(UnicodeIO()) as fp:
@@ -168,8 +166,8 @@ def test_main():
             assert str(N) + "it" not in res
 
     # test float --update_to
-    IN_DATA = '\n'.join((str(i / 2.0) for i in _range(N)))
-    with closing(StringIO()) as sys.stdin:
+    IN_DATA = '\n'.join((str(i / 2.0) for i in _range(N))).encode()
+    with closing(BytesIO()) as sys.stdin:
         sys.stdin.write(IN_DATA)
 
         sys.stdin.seek(0)
@@ -186,7 +184,7 @@ def test_main():
 def test_manpath():
     """Test CLI --manpath"""
     if IS_WIN:
-        raise SkipTest
+        skip("no manpages on windows")
     tmp = mkdtemp()
     man = path.join(tmp, "tqdm.1")
     assert not path.exists(man)
@@ -203,7 +201,7 @@ def test_manpath():
 def test_comppath():
     """Test CLI --comppath"""
     if IS_WIN:
-        raise SkipTest
+        skip("no manpages on windows")
     tmp = mkdtemp()
     man = path.join(tmp, "tqdm_completion.sh")
     assert not path.exists(man)
@@ -220,9 +218,8 @@ def test_comppath():
         script = fd.read()
     opts = set([
         '--help', '--desc', '--total', '--leave', '--ncols', '--ascii',
-        '--dynamic_ncols', '--position', '--bytes', '--nrows', '--delim',
-        '--manpath', '--comppath'
-    ])
+        '--dynamic_ncols', '--position', '--bytes', '--nrows', '--delim', '--manpath',
+        '--comppath'])
     assert all(args in script for args in opts)
     rmtree(tmp, True)
 

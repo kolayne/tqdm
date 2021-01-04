@@ -45,18 +45,16 @@ class TelegramIO(MonoWorker):
     def write(self, s):
         """Replaces internal `message_id`'s text with `s`."""
         if not s:
-            return
+            s = "..."
         s = s.replace('\r', '').strip()
         if s == self.text:
             return  # avoid duplicate message Bot error
         self.text = s
         try:
             future = self.submit(
-                self.session.post,
-                self.API + '%s/editMessageText' % self.token,
-                data=dict(
-                    text='`' + s + '`', chat_id=self.chat_id,
-                    message_id=self.message_id, parse_mode='MarkdownV2'))
+                self.session.post, self.API + '%s/editMessageText' % self.token,
+                data=dict(text='`' + s + '`', chat_id=self.chat_id,
+                          message_id=self.message_id, parse_mode='MarkdownV2'))
         except Exception as e:
             tqdm_auto.write(str(e))
         else:
@@ -91,40 +89,23 @@ class tqdm_telegram(tqdm_auto):
         See `tqdm.auto.tqdm.__init__` for other parameters.
         """
         kwargs = kwargs.copy()
-        self.tgio = TelegramIO(
-            kwargs.pop('token', getenv('TQDM_TELEGRAM_TOKEN')),
-            kwargs.pop('chat_id', getenv('TQDM_TELEGRAM_CHAT_ID')))
+        self.tgio = TelegramIO(kwargs.pop('token', getenv('TQDM_TELEGRAM_TOKEN')),
+                               kwargs.pop('chat_id', getenv('TQDM_TELEGRAM_CHAT_ID')))
         super(tqdm_telegram, self).__init__(*args, **kwargs)
 
     def display(self, **kwargs):
         super(tqdm_telegram, self).display(**kwargs)
         fmt = self.format_dict
-        if 'bar_format' in fmt and fmt['bar_format']:
-            fmt['bar_format'] = fmt['bar_format'].replace('<bar/>', '{bar}')
+        if fmt.get('bar_format', None):
+            fmt['bar_format'] = fmt['bar_format'].replace(
+                '<bar/>', '{bar:10u}').replace('{bar}', '{bar:10u}')
         else:
-            fmt['bar_format'] = '{l_bar}{bar}{r_bar}'
-        fmt['bar_format'] = fmt['bar_format'].replace('{bar}', '{bar:10u}')
+            fmt['bar_format'] = '{l_bar}{bar:10u}{r_bar}'
         self.tgio.write(self.format_meter(**fmt))
 
-    def __new__(cls, *args, **kwargs):
-        """
-        Workaround for mixed-class same-stream nested progressbars.
-        See [#509](https://github.com/tqdm/tqdm/issues/509)
-        """
-        with cls.get_lock():
-            try:
-                cls._instances = tqdm_auto._instances
-            except AttributeError:
-                pass
-        instance = super(tqdm_telegram, cls).__new__(cls, *args, **kwargs)
-        with cls.get_lock():
-            try:
-                # `tqdm_auto` may have been changed so update
-                cls._instances.update(tqdm_auto._instances)
-            except AttributeError:
-                pass
-            tqdm_auto._instances = cls._instances
-        return instance
+    def clear(self, *args, **kwargs):
+        super(tqdm_telegram, self).clear(*args, **kwargs)
+        self.tgio.write("")
 
 
 def ttgrange(*args, **kwargs):

@@ -8,7 +8,7 @@
 	all
 	flake8
 	test
-	testnose
+	pytest
 	testsetup
 	testcoverage
 	testperf
@@ -50,8 +50,8 @@ test:
 	TOX_SKIP_ENV=perf tox --skip-missing-interpreters -p all
 	tox -e perf
 
-testnose:
-	nosetests -d -v tqdm
+pytest:
+	pytest
 
 testsetup:
 	@make README.rst
@@ -62,14 +62,14 @@ testsetup:
 
 testcoverage:
 	@make coverclean
-	nosetests -d -v tqdm --ignore-files="tests_perf\.py" --with-coverage --cover-package=tqdm --cover-erase --cover-min-percentage=80
+	pytest -k "not tests_perf" --cov=tqdm --cov-fail-under=80
 
 testperf:
 	# do not use coverage (which is extremely slow)
-	nosetests -d -v tqdm/tests/tests_perf.py
+	pytest -k tests_perf
 
 testtimer:
-	nosetests -d -v tqdm --with-timer
+	pytest
 
 # another performance test, to check evolution across commits
 testasv:
@@ -102,16 +102,11 @@ tqdm/completion.sh: .meta/mkcompletion.py tqdm/std.py tqdm/cli.py
 README.rst: .meta/.readme.rst tqdm/std.py tqdm/cli.py
 	@python .meta/mkdocs.py
 
-snapcraft.yaml: .meta/.snapcraft.yml
-	cat "$<" | sed -e 's/{version}/'"`python -m tqdm --version`"'/g' \
-    -e 's/{commit}/'"`git describe --always`"'/g' \
-    -e 's/{source}/./g' -e 's/{icon}/logo.png/g' \
-    -e 's/{description}/https:\/\/tqdm.github.io/g' > "$@"
+snapcraft.yaml: .meta/mksnap.py
+	@python .meta/mksnap.py
 
-.dockerignore: .gitignore
-	cat $^ > "$@"
-	echo ".git" > "$@"
-	git clean -xdn | sed -nr 's/^Would remove (.*)$$/\1/p' >> "$@"
+.dockerignore:
+	@+python -c "fd=open('.dockerignore', 'w'); fd.write('*\n!dist/*.whl\n')"
 
 distclean:
 	@+make coverclean
@@ -119,24 +114,29 @@ distclean:
 	@+make clean
 pre-commit:
 	# quick sanity checks
-	@make testsetup
-	flake8 -j 8 --count --statistics tqdm/ examples/
-	nosetests -d tqdm --ignore-files="tests_(perf|keras)\.py" -e "pandas|monitoring"
-	nosetests -d tqdm/tests/tests_perf.py -m basic_overhead
+	@make --no-print-directory testsetup
+	flake8 -j 8 --count --statistics setup.py .meta/ tqdm/ tests/ examples/
+	pytest -qq --durations=1 -k "basic_overhead or not (perf or keras or pandas or monitoring)"
 prebuildclean:
 	@+python -c "import shutil; shutil.rmtree('build', True)"
 	@+python -c "import shutil; shutil.rmtree('dist', True)"
 	@+python -c "import shutil; shutil.rmtree('tqdm.egg-info', True)"
+	@+python -c "import shutil; shutil.rmtree('.eggs', True)"
+	@+python -c "import os; os.remove('tqdm/_dist_ver.py') if os.path.exists('tqdm/_dist_ver.py') else None"
 coverclean:
 	@+python -c "import os; os.remove('.coverage') if os.path.exists('.coverage') else None"
+	@+python -c "import os, glob; [os.remove(i) for i in glob.glob('.coverage.*')]"
+	@+python -c "import shutil; shutil.rmtree('tests/__pycache__', True)"
+	@+python -c "import shutil; shutil.rmtree('benchmarks/__pycache__', True)"
 	@+python -c "import shutil; shutil.rmtree('tqdm/__pycache__', True)"
 	@+python -c "import shutil; shutil.rmtree('tqdm/contrib/__pycache__', True)"
-	@+python -c "import shutil; shutil.rmtree('tqdm/tests/__pycache__', True)"
+	@+python -c "import shutil; shutil.rmtree('tqdm/examples/__pycache__', True)"
 clean:
 	@+python -c "import os, glob; [os.remove(i) for i in glob.glob('*.py[co]')]"
+	@+python -c "import os, glob; [os.remove(i) for i in glob.glob('tests/*.py[co]')]"
+	@+python -c "import os, glob; [os.remove(i) for i in glob.glob('benchmarks/*.py[co]')]"
 	@+python -c "import os, glob; [os.remove(i) for i in glob.glob('tqdm/*.py[co]')]"
 	@+python -c "import os, glob; [os.remove(i) for i in glob.glob('tqdm/contrib/*.py[co]')]"
-	@+python -c "import os, glob; [os.remove(i) for i in glob.glob('tqdm/tests/*.py[co]')]"
 	@+python -c "import os, glob; [os.remove(i) for i in glob.glob('tqdm/examples/*.py[co]')]"
 toxclean:
 	@+python -c "import shutil; shutil.rmtree('.tox', True)"
@@ -171,9 +171,8 @@ snap:
 	@make -B snapcraft.yaml
 	snapcraft
 docker:
+	@make build
 	@make .dockerignore
-	@make coverclean
-	@make clean
 	docker build . -t tqdm/tqdm
 	docker tag tqdm/tqdm:latest tqdm/tqdm:$(shell docker run -i --rm tqdm/tqdm -v)
 none:

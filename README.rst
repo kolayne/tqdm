@@ -7,7 +7,7 @@ tqdm
 
 |Build-Status| |Coverage-Status| |Branch-Coverage-Status| |Codacy-Grade| |Libraries-Rank| |PyPI-Downloads|
 
-|LICENCE| |OpenHub-Status| |binder-demo| |notebook-demo| |awesome-python|
+|LICENCE| |OpenHub-Status| |binder-demo| |awesome-python|
 
 ``tqdm`` derives from the Arabic word *taqaddum* (تقدّم) which can mean "progress,"
 and is an abbreviation for "I love you so much" in Spanish (*te quiero demasiado*).
@@ -111,7 +111,7 @@ There are 3 channels to choose from:
     snap install tqdm  --candidate  # master branch
     snap install tqdm  --edge  # devel branch
 
-Note than ``snap`` binaries are purely for CLI use (not ``import``-able), and
+Note that ``snap`` binaries are purely for CLI use (not ``import``-able), and
 automatically set up ``bash`` tab-completion.
 
 Latest Docker release
@@ -433,7 +433,7 @@ Parameters
     percentage, elapsed, elapsed_s, ncols, nrows, desc, unit,
     rate, rate_fmt, rate_noinv, rate_noinv_fmt,
     rate_inv, rate_inv_fmt, postfix, unit_divisor,
-    remaining, remaining_s.
+    remaining, remaining_s, eta.
     Note that a trailing ": " is automatically removed after {desc}
     if the latter is empty.
 * initial  : int or float, optional  
@@ -479,10 +479,12 @@ Extra CLI Options
     If true, passes ``stdin`` to both ``stderr`` and ``stdout``.
 * update  : bool, optional  
     If true, will treat input as newly elapsed iterations,
-    i.e. numbers to pass to ``update()``.
+    i.e. numbers to pass to ``update()``. Note that this is slow
+    (~2e5 it/s) since every input must be decoded as a number.
 * update_to  : bool, optional  
     If true, will treat input as total elapsed iterations,
-    i.e. numbers to assign to ``self.n``.
+    i.e. numbers to assign to ``self.n``. Note that this is slow
+    (~2e5 it/s) since every input must be decoded as a number.
 * null  : bool, optional  
     If true, will discard input (no stdout).
 * manpath  : str, optional  
@@ -690,7 +692,7 @@ Examples and Advanced Usage
     on how to make a **great** progressbar;
 
 - check out the `slides from PyData London <https://tqdm.github.io/PyData2019/slides.html>`__, or
-- run the |notebook-demo| or |binder-demo|.
+- run the |binder-demo|.
 
 Description and additional stats
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -792,7 +794,8 @@ available to keep nested bars on their respective lines.
 For manual control over positioning (e.g. for multi-processing use),
 you may specify ``position=n`` where ``n=0`` for the outermost bar,
 ``n=1`` for the next, and so on.
-However, it's best to check if `tqdm` can work without manual `position` first.
+However, it's best to check if ``tqdm`` can work without manual ``position``
+first.
 
 .. code:: python
 
@@ -959,6 +962,31 @@ custom callback take advantage of this, simply use the return value of
                 external_callback(**self.format_dict)
             return displayed
 
+``asyncio``
+~~~~~~~~~~~
+
+Note that ``break`` isn't currently caught by asynchronous iterators.
+This means that ``tqdm`` cannot clean up after itself in this case:
+
+.. code:: python
+
+    from tqdm.asyncio import tqdm
+
+    async for i in tqdm(range(9)):
+        if i == 2:
+            break
+
+Instead, either call ``pbar.close()`` manually or use the context manager syntax:
+
+.. code:: python
+
+    from tqdm.asyncio import tqdm
+
+    with tqdm(range(9)) as pbar:
+        async for i in pbar:
+            if i == 2:
+                break
+
 Pandas Integration
 ~~~~~~~~~~~~~~~~~~
 
@@ -1042,8 +1070,34 @@ this warning.
 
 Note that notebooks will display the bar in the cell where it was created.
 This may be a different cell from the one where it is used.
-If this is not desired, the creation of the bar must be delayed/moved to the
-cell where it is desired to be displayed.
+If this is not desired, either
+
+- delay the creation of the bar to the cell where it must be displayed, or
+- create the bar with ``display=False``, and in a later cell call
+  ``display(bar.container)``:
+
+.. code:: python
+
+    from tqdm.notebook import tqdm
+    pbar = tqdm(..., display=False)
+
+.. code:: python
+
+    # different cell
+    display(pbar.container)
+
+The ``keras`` callback has a ``display()`` method which can be used likewise:
+
+.. code:: python
+
+    from tqdm.keras import TqdmCallback
+    cbk = TqdmCallback(display=False)
+
+.. code:: python
+
+    # different cell
+    cbk.display()
+    model.fit(..., verbose=0, callbacks=[cbk])
 
 Another possibility is to have a single bar (near the top of the notebook)
 which is constantly re-used (using ``reset()`` rather than ``close()``).
@@ -1088,8 +1142,7 @@ For further customisation,
 Consider overloading ``display()`` to use e.g.
 ``self.frontend(**self.format_dict)`` instead of ``self.sp(repr(self))``.
 
-Some submodule examples of inheritance which don't (yet) strictly conform to the
-above recommendation:
+Some submodule examples of inheritance:
 
 - `tqdm/notebook.py <https://github.com/tqdm/tqdm/blob/master/tqdm/notebook.py>`__
 - `tqdm/gui.py <https://github.com/tqdm/tqdm/blob/master/tqdm/gui.py>`__
@@ -1274,26 +1327,26 @@ file for more information.
 
 Developers who have made significant contributions, ranked by *SLoC*
 (surviving lines of code,
-`git fame <https://github.com/casperdcl/git-fame>`__ ``-wMC``),
+`git fame <https://github.com/casperdcl/git-fame>`__ ``-wMC --excl '\.(png|gif|jpg)$'``),
 are:
 
 ==================== ======================================================== ==== ================================
 Name                 ID                                                       SLoC Notes
 ==================== ======================================================== ==== ================================
-Casper da Costa-Luis `casperdcl <https://github.com/casperdcl>`__             ~75% primary maintainer |Gift-Casper|
-Stephen Larroque     `lrq3000 <https://github.com/lrq3000>`__                 ~15% team member
+Casper da Costa-Luis `casperdcl <https://github.com/casperdcl>`__             ~82% primary maintainer |Gift-Casper|
+Stephen Larroque     `lrq3000 <https://github.com/lrq3000>`__                 ~11% team member
 Martin Zugnoni       `martinzugnoni <https://github.com/martinzugnoni>`__     ~3%
 Guangshuo Chen       `chengs <https://github.com/chengs>`__                   ~1%
-Hadrien Mary         `hadim <https://github.com/hadim>`__                     ~1%  team member
-Matthew Stevens      `mjstevens777 <https://github.com/mjstevens777>`__       ~1%
-Noam Yorav-Raphael   `noamraph <https://github.com/noamraph>`__               ~1%  original author
-Kyle Altendorf       `altendky <https://github.com/altendky>`__               ~1%
-Ivan Ivanov          `obiwanus <https://github.com/obiwanus>`__               ~1%
-James E. King III    `jeking3 <https://github.com/jeking3>`__                 ~1%
-Mikhail Korobov      `kmike <https://github.com/kmike>`__                     ~1%  team member
+Kyle Altendorf       `altendky <https://github.com/altendky>`__               <1%
+Matthew Stevens      `mjstevens777 <https://github.com/mjstevens777>`__       <1%
+Jona Haag            `<https://github.com/>`__                                <1%
+Hadrien Mary         `hadim <https://github.com/hadim>`__                     <1%  team member
+Daniel Panteleit     `<https://github.com/>`__                                <1%
+Ivan Ivanov          `obiwanus <https://github.com/obiwanus>`__               <1%
+James E. King III    `jeking3 <https://github.com/jeking3>`__                 <1%
+Noam Yorav-Raphael   `noamraph <https://github.com/noamraph>`__               <1%  original author
+Mikhail Korobov      `kmike <https://github.com/kmike>`__                     <1%  team member
 ==================== ======================================================== ==== ================================
-
-|sourcerer-0| |sourcerer-1| |sourcerer-2| |sourcerer-3| |sourcerer-4| |sourcerer-5| |sourcerer-7|
 
 Ports to Other Languages
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1317,9 +1370,9 @@ Citation information: |DOI|
    :target: https://tqdm.github.io/video
 .. |Slides| image:: https://raw.githubusercontent.com/tqdm/tqdm/master/images/slides.jpg
    :target: https://tqdm.github.io/PyData2019/slides.html
-.. |Build-Status| image:: https://img.shields.io/travis/tqdm/tqdm/master.svg?logo=travis
-   :target: https://travis-ci.org/tqdm/tqdm
-.. |Coverage-Status| image:: https://coveralls.io/repos/tqdm/tqdm/badge.svg?branch=master
+.. |Build-Status| image:: https://img.shields.io/github/workflow/status/tqdm/tqdm/Test/master?logo=GitHub
+   :target: https://github.com/tqdm/tqdm/actions?query=workflow%3ATest
+.. |Coverage-Status| image:: https://img.shields.io/coveralls/github/tqdm/tqdm/master?logo=coveralls
    :target: https://coveralls.io/github/tqdm/tqdm
 .. |Branch-Coverage-Status| image:: https://codecov.io/gh/tqdm/tqdm/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/tqdm/tqdm
@@ -1369,8 +1422,6 @@ Citation information: |DOI|
    :target: https://raw.githubusercontent.com/tqdm/tqdm/master/LICENCE
 .. |DOI| image:: https://img.shields.io/badge/DOI-10.5281/zenodo.595120-blue.svg
    :target: https://doi.org/10.5281/zenodo.595120
-.. |notebook-demo| image:: https://img.shields.io/badge/launch-notebook-orange.svg?logo=jupyter
-   :target: https://notebooks.ai/demo/gh/tqdm/tqdm
 .. |binder-demo| image:: https://mybinder.org/badge_logo.svg
    :target: https://mybinder.org/v2/gh/tqdm/tqdm/master?filepath=DEMO.ipynb
 .. |Screenshot-Jupyter1| image:: https://raw.githubusercontent.com/tqdm/tqdm/master/images/tqdm-jupyter-1.gif
@@ -1378,19 +1429,3 @@ Citation information: |DOI|
 .. |Screenshot-Jupyter3| image:: https://raw.githubusercontent.com/tqdm/tqdm/master/images/tqdm-jupyter-3.gif
 .. |README-Hits| image:: https://caspersci.uk.to/cgi-bin/hits.cgi?q=tqdm&style=social&r=https://github.com/tqdm/tqdm&l=https://caspersci.uk.to/images/tqdm.png&f=https://raw.githubusercontent.com/tqdm/tqdm/master/images/logo.gif
    :target: https://caspersci.uk.to/cgi-bin/hits.cgi?q=tqdm&a=plot&r=https://github.com/tqdm/tqdm&l=https://caspersci.uk.to/images/tqdm.png&f=https://raw.githubusercontent.com/tqdm/tqdm/master/images/logo.gif&style=social
-.. |sourcerer-0| image:: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/images/0
-   :target: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/links/0
-.. |sourcerer-1| image:: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/images/1
-   :target: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/links/1
-.. |sourcerer-2| image:: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/images/2
-   :target: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/links/2
-.. |sourcerer-3| image:: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/images/3
-   :target: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/links/3
-.. |sourcerer-4| image:: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/images/4
-   :target: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/links/4
-.. |sourcerer-5| image:: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/images/5
-   :target: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/links/5
-.. |sourcerer-6| image:: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/images/6
-   :target: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/links/6
-.. |sourcerer-7| image:: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/images/7
-   :target: https://sourcerer.io/fame/casperdcl/tqdm/tqdm/links/7
